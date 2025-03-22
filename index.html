@@ -66,6 +66,15 @@
             align-items: center;
             gap: 10px;
         }
+        #weaponViewModel {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 400px;
+            height: 400px;
+            pointer-events: none;
+            transform: translate(100px, 100px);
+        }
         .weapon-icon {
             width: 30px;
             height: 30px;
@@ -215,6 +224,7 @@
         </div>
         <div id="waveInfo">Wave: 0</div>
         <div id="killFeed"></div>
+        <div id="weaponViewModel"></div>
     </div>
     
     <div id="startMenu">
@@ -382,6 +392,8 @@
             });
             // Update the weapon indicator to show the selected weapon
             updateWeaponIndicator();
+            // Update the weapon view model
+            updateWeaponViewModel();
             document.getElementById('startMenu').style.display = 'none';
             isGameActive = true;
             renderer.domElement.requestPointerLock();
@@ -740,11 +752,11 @@
             createWall(0, 2, 40, 100, 4, 1, 0x808080, true);
             createWall(-40, 2, 0, 1, 4, 80, 0x808080, true);
             createWall(40, 2, 0, 1, 4, 80, 0x808080, true);
-
+            
             // Create jump pads
             createJumpPad(25, 0.2, 25, 3, 0.4, 3, 0x00FFFF, 30, true);
             createJumpPad(-25, 0.2, -25, 3, 0.4, 3, 0x00FFFF, 30, true);
-
+            
             // Create spawn points for AI
             aiTargets = [
                 new THREE.Vector3(30, 2, 30),
@@ -1426,15 +1438,15 @@
         
         function shouldRemoveBullet(bullet, index) {
             // Remove if lifetime expired
-            bullet.lifetime -= deltaTime;
-            if (bullet.lifetime <= 0) {
+                bullet.lifetime -= deltaTime;
+                if (bullet.lifetime <= 0) {
                 removeBullet(index);
                 return true;
-            }
-            
+                }
+                
             // Remove if out of bounds
-            const bulletPos = bullet.mesh.position;
-            if (Math.abs(bulletPos.x) > 40 || bulletPos.y < 0 || Math.abs(bulletPos.z) > 40) {
+                const bulletPos = bullet.mesh.position;
+                if (Math.abs(bulletPos.x) > 40 || bulletPos.y < 0 || Math.abs(bulletPos.z) > 40) {
                 removeBullet(index);
                 return true;
             }
@@ -1450,10 +1462,10 @@
         function checkEnemyCollisions(bullet, bulletIndex) {
             const bulletPos = bullet.mesh.position;
             
-            for (let j = 0; j < enemies.length; j++) {
-                const enemy = enemies[j];
-                if (enemy.isDead) continue;
-                
+                    for (let j = 0; j < enemies.length; j++) {
+                        const enemy = enemies[j];
+                        if (enemy.isDead) continue;
+                        
                 if (bulletPos.distanceTo(enemy.body.position) < 1.2) {
                     removeBullet(bulletIndex);
                     handleEnemyHit(enemy, bullet.damage);
@@ -1471,12 +1483,12 @@
         
         function handleEnemyHit(enemy, damage) {
             enemy.health -= damage;
-            
-            if (enemy.health <= 0) {
-                enemy.isDead = true;
+                            
+                            if (enemy.health <= 0) {
+                                enemy.isDead = true;
                 enemy.respawnTime = 5;
-                enemy.mesh.visible = false;
-                killCount++;
+                                enemy.mesh.visible = false;
+                                killCount++;
                 enemiesRemaining--;
                 
                 addKillMessage(`Enemy eliminated! ${enemiesRemaining} remaining`);
@@ -1491,10 +1503,10 @@
         
         function handlePlayerHit(damage) {
             playerHealth -= damage;
-            updateHealthBar();
-            
-            if (playerHealth <= 0) {
-                playerDeath();
+                        updateHealthBar();
+                        
+                        if (playerHealth <= 0) {
+                            playerDeath();
             }
         }
         
@@ -1679,6 +1691,15 @@
             weapon.ammo--;
             updateAmmoDisplay();
             
+            // Show muzzle flash
+            if (weapon.viewModel) {
+                const muzzleFlash = weapon.viewModel.mesh.children[3];
+                muzzleFlash.material.opacity = 1;
+                setTimeout(() => {
+                    muzzleFlash.material.opacity = 0;
+                }, 50);
+            }
+            
             // Get direction by combining camera container and camera rotations
             const direction = new THREE.Vector3(0, 0, -1);
             const combinedQuaternion = new THREE.Quaternion();
@@ -1697,10 +1718,10 @@
                     
                     createBullet(
                         playerBody.position.x,
-                        playerBody.position.y + 2.5, // Increased spawn height to match crosshair
+                        playerBody.position.y + 2.5,
                         playerBody.position.z,
                         spreadDirection,
-                        weapon.damage / 6, // Divide damage among pellets
+                        weapon.damage / 6,
                         weapon.bulletSpeed,
                         weapon.color
                     );
@@ -1709,7 +1730,7 @@
                 // Normal weapon
                 createBullet(
                     playerBody.position.x,
-                    playerBody.position.y + 2.5, // Increased spawn height to match crosshair
+                    playerBody.position.y + 2.5,
                     playerBody.position.z,
                     direction,
                     weapon.damage,
@@ -1815,7 +1836,7 @@
             
             if (isGameActive) {
                 // Get delta time
-                deltaTime = Math.min(clock.getDelta(), 0.1); // Cap delta time to prevent large jumps
+                deltaTime = Math.min(clock.getDelta(), 0.1);
                 
                 // Update physics world
                 world.step(deltaTime);
@@ -1842,6 +1863,9 @@
                 
                 // Check weapon pickups
                 checkWeaponPickups();
+                
+                // Animate weapon view model
+                animateWeaponViewModel();
                 
                 // Check for wave completion and start next wave
                 if (isWaveComplete && Date.now() - waveStartTime >= waveBreakDuration * 1000) {
@@ -1886,6 +1910,128 @@
                     <span>AMMO: ${weapon.ammo}/${weapon.maxAmmo}</span>
                 </div>
             `;
+        }
+        
+        function createWeaponMesh(weapon) {
+            const weaponGroup = new THREE.Group();
+            
+            // Create weapon body
+            const bodyGeometry = new THREE.BoxGeometry(0.2, 1.2, 0.2);
+            const bodyMaterial = new THREE.MeshStandardMaterial({ 
+                color: weapon.color,
+                metalness: 0.8,
+                roughness: 0.2,
+                emissive: weapon.color,
+                emissiveIntensity: 0.5
+            });
+            const weaponBody = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            weaponBody.position.y = 0.6;
+            weaponGroup.add(weaponBody);
+            
+            // Create weapon barrel
+            const barrelGeometry = new THREE.BoxGeometry(0.15, 0.8, 0.15);
+            const barrelMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x444444,
+                metalness: 0.9,
+                roughness: 0.1
+            });
+            const barrel = new THREE.Mesh(barrelGeometry, barrelMaterial);
+            barrel.position.set(0, 1.2, 0);
+            weaponGroup.add(barrel);
+            
+            // Create weapon glow
+            const glowGeometry = new THREE.BoxGeometry(0.3, 0.1, 0.3);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: weapon.color,
+                transparent: true,
+                opacity: 0.5
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            glow.position.set(0, 1.6, 0);
+            weaponGroup.add(glow);
+            
+            // Add muzzle flash (initially invisible)
+            const muzzleFlashGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+            const muzzleFlashMaterial = new THREE.MeshBasicMaterial({
+                color: weapon.color,
+                transparent: true,
+                opacity: 0
+            });
+            const muzzleFlash = new THREE.Mesh(muzzleFlashGeometry, muzzleFlashMaterial);
+            muzzleFlash.position.set(0, 2, 0);
+            weaponGroup.add(muzzleFlash);
+            
+            return weaponGroup;
+        }
+
+        function updateWeaponViewModel() {
+            const weapon = weapons[currentWeapon];
+            const viewModelContainer = document.getElementById('weaponViewModel');
+            
+            // Remove existing view model if any
+            while (viewModelContainer.firstChild) {
+                viewModelContainer.removeChild(viewModelContainer.firstChild);
+            }
+            
+            // Create new view model
+            const viewModel = createWeaponMesh(weapon);
+            viewModel.position.set(0, -0.5, -1);
+            viewModel.rotation.x = -Math.PI / 4;
+            
+            // Create a new scene for the view model
+            const viewModelScene = new THREE.Scene();
+            viewModelScene.add(viewModel);
+            
+            // Create a new camera for the view model
+            const viewModelCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
+            viewModelCamera.position.set(0, 0, 2);
+            
+            // Create a new renderer for the view model
+            const viewModelRenderer = new THREE.WebGLRenderer({ alpha: true });
+            viewModelRenderer.setSize(400, 400);
+            viewModelRenderer.setClearColor(0x000000, 0);
+            viewModelContainer.appendChild(viewModelRenderer.domElement);
+            
+            // Store the view model components
+            weapon.viewModel = {
+                scene: viewModelScene,
+                camera: viewModelCamera,
+                renderer: viewModelRenderer,
+                mesh: viewModel
+            };
+            
+            // Add animation properties
+            weapon.viewModel.bobAmount = 0.05;
+            weapon.viewModel.bobSpeed = 0.1;
+            weapon.viewModel.recoilAmount = 0.2;
+            weapon.viewModel.recoilSpeed = 0.2;
+            weapon.viewModel.recoilRecovery = 0.1;
+        }
+
+        function animateWeaponViewModel() {
+            const weapon = weapons[currentWeapon];
+            if (!weapon.viewModel) return;
+            
+            const time = Date.now() * 0.001;
+            const viewModel = weapon.viewModel;
+            
+            // Apply weapon bob when moving
+            if (moveForward || moveBackward || moveLeft || moveRight) {
+                viewModel.mesh.position.y = -0.5 + Math.sin(time * viewModel.bobSpeed) * viewModel.bobAmount;
+            } else {
+                viewModel.mesh.position.y = -0.5;
+            }
+            
+            // Apply recoil when shooting
+            if (isShooting && Date.now() - lastFired < 100) {
+                viewModel.mesh.position.z = -1 + viewModel.recoilAmount;
+            } else {
+                // Smooth recoil recovery
+                viewModel.mesh.position.z += (-1 - viewModel.mesh.position.z) * viewModel.recoilRecovery;
+            }
+            
+            // Render the view model
+            viewModel.renderer.render(viewModel.scene, viewModel.camera);
         }
         
         // Initialize game
